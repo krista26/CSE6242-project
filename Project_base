@@ -1,1 +1,44 @@
 #placeholder text
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Oct 20 20:54:11 2022
+
+@author: krist
+"""
+
+import pandas as pd
+import numpy as np
+
+# Read in three datasets
+temps=pd.read_csv('GlobalLandTemperaturesByCountry.csv', low_memory=False)
+ghg=pd.read_csv('greenhouse_gas_inventory_data_data.csv')
+emissions=pd.read_csv('co2_emission.csv')
+
+#Convert date column to datetime 
+temps['dt']=pd.to_datetime(temps['dt'])
+emissions=emissions.drop(columns='Code')
+
+
+# %%
+#print(temps.tail())
+#print(ghg.head())
+
+#Filter out all rows that are from earlier than 1950
+temp_data=temps[temps['dt']>'1950-01-01'].reset_index(drop=True)
+#print(temp_data.Country.unique())
+
+#There are some duplicate countries, so I am removing those
+temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Europe)','Netherlands (Europe)','United Kingdom (Europe)' ])]
+#print(temp_data.Country.unique())
+
+#Adding a year column so we can join CO2 data
+temp_data['year'] = pd.DatetimeIndex(temp_data['dt']).year
+print(temp_data.head())
+
+# %%
+
+#print(emissions.head())
+
+#Inner joining so we aren't introducing any countries/years that aren't contained in both datasets
+new_df=pd.merge(temp_data, emissions, how='inner', left_on=['Country', 'year'], right_on=['Entity', 'Year'])
+print(new_df.head())
