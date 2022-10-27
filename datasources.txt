@@ -1,1 +1,7 @@
 Data sources go here:
+
+Temperature by Country:
+https://www.kaggle.com/datasets/berkeleyearth/climate-change-earth-surface-temperature-data?select=GlobalLandTemperaturesByCountry.csv
+
+CO2 emissions by Country:
+https://www.kaggle.com/datasets/yoannboyere/co2-ghg-emissionsdata?select=co2_emission.csv
