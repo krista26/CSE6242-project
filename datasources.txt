@@ -5,3 +5,11 @@ https://www.kaggle.com/datasets/berkeleyearth/climate-change-earth-surface-tempe
 
 CO2 emissions by Country:
 https://www.kaggle.com/datasets/yoannboyere/co2-ghg-emissionsdata?select=co2_emission.csv
+
+Methane emissions by Country:
+https://www.kaggle.com/datasets/kkhandekar/methane-emissions-across-the-world-19902018
+
+Population data:
+https://www.kaggle.com/datasets/prasertk/population-pyramid-by-country-from-19502022
+
+
