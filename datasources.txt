@@ -12,4 +12,5 @@ https://www.kaggle.com/datasets/kkhandekar/methane-emissions-across-the-world-19
 Population data:
 https://www.kaggle.com/datasets/prasertk/population-pyramid-by-country-from-19502022
 
-
+GDP data:
+https://www.kaggle.com/datasets/rinichristy/countries-gdp-19602020
