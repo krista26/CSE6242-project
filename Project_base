@@ -1,4 +1,3 @@
-#placeholder text
 # -*- coding: utf-8 -*-
 """
 Created on Thu Oct 20 20:54:11 2022
@@ -9,19 +8,17 @@ Created on Thu Oct 20 20:54:11 2022
 import pandas as pd
 import numpy as np
 
-# Read in three datasets
+# Read in datasets
 temps=pd.read_csv('GlobalLandTemperaturesByCountry.csv', low_memory=False)
-ghg=pd.read_csv('greenhouse_gas_inventory_data_data.csv')
 emissions=pd.read_csv('co2_emission.csv')
+population=pd.read_csv('population_pyramid_1950-2022.csv').drop(columns='Age')
+methane=pd.read_csv('methane_hist_emissions.csv').drop(columns=['Gas', 'Unit', 'Sector'])
+gdp=pd.read_csv('Countries GDP 1960-2020.csv').drop(columns='Country Code')
 
 #Convert date column to datetime 
 temps['dt']=pd.to_datetime(temps['dt'])
 emissions=emissions.drop(columns='Code')
 
-
-# %%
-#print(temps.tail())
-#print(ghg.head())
 
 #Filter out all rows that are from earlier than 1950
 temp_data=temps[temps['dt']>'1950-01-01'].reset_index(drop=True)
@@ -33,12 +30,48 @@ temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Euro
 
 #Adding a year column so we can join CO2 data
 temp_data['year'] = pd.DatetimeIndex(temp_data['dt']).year
-print(temp_data.head())
+
+#Adding population columns together then grouping by country and year
+population['total']=population['M']+population['F']
+population=population.drop(columns=['M','F'])
+population=population.groupby(by=['Country', 'Year']).sum().reset_index()
+
+#Clean and process methane data
+methane=methane.groupby(by='Country').sum()
+year_list=list(methane.columns)
+methane= pd.melt(methane, value_vars=year_list,value_name='methane', var_name='Year', ignore_index=False).reset_index()
+methane['Year']=methane['Year'].astype('int64')
+
+print(methane.head())
+
+#Clean and process GDP data
+gdp=gdp.set_index('Country Name')
+year_list=list(gdp.columns)
+gdp= pd.melt(gdp, value_vars=year_list,value_name='gdp', var_name='Year', ignore_index=False).reset_index().rename(columns={'Country Name':'Country'})
+gdp['Year']=gdp['Year'].astype('int64')
+print(gdp.head())
 
 # %%
 
-#print(emissions.head())
+#Inner joining so we aren't introducing any countries that aren't contained in both datasets
+df=pd.merge(temp_data, emissions, how='inner', left_on=['Country', 'year'], right_on=['Entity', 'Year']).drop(columns=['Entity','year'])
+df['Annual CO₂ emissions (tonnes )']=df['Annual CO₂ emissions (tonnes )']/12
+#print(new_df)
 
-#Inner joining so we aren't introducing any countries/years that aren't contained in both datasets
-new_df=pd.merge(temp_data, emissions, how='inner', left_on=['Country', 'year'], right_on=['Entity', 'Year'])
-print(new_df.head())
+#Inner joining population data and renaming some columns
+df=pd.merge(df, population, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+df=df.rename(columns={'Annual CO₂ emissions (tonnes )': 'CO2', 'total':'population'})
+#print(df.head())
+
+#print(len(df['Country'].unique()))
+#159 countries
+
+#Merging methane data, left merge because we are missing several years compared to other sets
+df=pd.merge(df, methane, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+df['methane']=df['methane']/12
+
+#Joining GDP data w inner join
+df=pd.merge(df, gdp, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+df['gdp']=df['gdp']/12
+print(df.tail())
+print(df['Country'].unique())
