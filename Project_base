@@ -73,5 +73,16 @@ df['methane']=df['methane']/12
 #Joining GDP data w inner join
 df=pd.merge(df, gdp, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['gdp']=df['gdp']/12
-print(df.tail())
-print(df['Country'].unique())
+df['dt']=df['dt'].astype(str)
+print(df.head())
+print(len(df['Country'].unique()))
+
+#%%
+import json
+pd.set_option('display.max_columns', None)
+#print(df.describe())
+
+
+result = df.to_json(orient="index")
+parsed = json.loads(result)
+df_json=json.dumps(parsed, indent=4)[:1000]
