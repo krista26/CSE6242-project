@@ -19,10 +19,8 @@ gdp=pd.read_csv('Countries GDP 1960-2020.csv').drop(columns='Country Code')
 temps['dt']=pd.to_datetime(temps['dt'])
 emissions=emissions.drop(columns='Code')
 
-
 #Filter out all rows that are from earlier than 1950
 temp_data=temps[temps['dt']>'1950-01-01'].reset_index(drop=True)
-#print(temp_data.Country.unique())
 
 #There are some duplicate countries, so I am removing those
 temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Europe)','Netherlands (Europe)','United Kingdom (Europe)' ])]
@@ -30,11 +28,20 @@ temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Euro
 
 #Adding a year column so we can join CO2 data
 temp_data['year'] = pd.DatetimeIndex(temp_data['dt']).year
+temp_data['decade']= (pd.DatetimeIndex(temp_data['dt']).year//10)*10
+
 
 #Adding population columns together then grouping by country and year
 population['total']=population['M']+population['F']
 population=population.drop(columns=['M','F'])
 population=population.groupby(by=['Country', 'Year']).sum().reset_index()
+population=population.rename(columns={'Year':'decade'})
+
+population['Country']=population['Country'].replace(['United States of America', 'Russian Federation', 'Viet Nam', 'Venezuela (Bolivarian Republic of)', 'Iran (Islamic Republic of)', 'Republic of Korea', 'United Republic of Tanzania'],
+                                                    ['United States', 'Russia', 'Vietnam', 'Venezuela', 'Iran', 'South Korea', 'Tanzania'])
+#print(population.Country.unique())
+#print(population.head())
+
 
 #Clean and process methane data
 methane=methane.groupby(by='Country').sum()
@@ -44,12 +51,14 @@ methane['Year']=methane['Year'].astype('int64')
 
 print(methane.head())
 
+
 #Clean and process GDP data
 gdp=gdp.set_index('Country Name')
 year_list=list(gdp.columns)
 gdp= pd.melt(gdp, value_vars=year_list,value_name='gdp', var_name='Year', ignore_index=False).reset_index().rename(columns={'Country Name':'Country'})
 gdp['Year']=gdp['Year'].astype('int64')
 print(gdp.head())
+
 
 # %%
 
@@ -58,25 +67,26 @@ df=pd.merge(temp_data, emissions, how='inner', left_on=['Country', 'year'], righ
 df['Annual CO₂ emissions (tonnes )']=df['Annual CO₂ emissions (tonnes )']/12
 #print(new_df)
 
+
 #Inner joining population data and renaming some columns
-df=pd.merge(df, population, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+df=pd.merge(df, population, how='inner', left_on=['Country', 'decade'], right_on=['Country', 'decade'])
 df=df.rename(columns={'Annual CO₂ emissions (tonnes )': 'CO2', 'total':'population'})
 #print(df.head())
 
-#print(len(df['Country'].unique()))
+print(df['Country'].unique())
 #159 countries
 
 #Merging methane data, left merge because we are missing several years compared to other sets
 df=pd.merge(df, methane, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['methane']=df['methane']/12
 
+
 #Joining GDP data w inner join
 df=pd.merge(df, gdp, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['gdp']=df['gdp']/12
 df['dt']=df['dt'].astype(str)
-print(df.head())
 print(len(df['Country'].unique()))
-
+print(df.head(50))
 #%%
 import json
 pd.set_option('display.max_columns', None)
