@@ -14,6 +14,8 @@ from dateutil import parser
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error
 from pmdarima import auto_arima
+from sklearn.linear_model import LinearRegression
+
 
 
 warnings.filterwarnings("ignore")
@@ -137,7 +139,10 @@ end_date = parser.parse("01-01-2050")
 end_year = 3000
 country_predictions = []
 country_changes ={}
+regression_df = pd.DataFrame(columns=['Country', 'gdp_coef', 'methane_coef', 'CO2_coef', 'population_coef', 'intercept', 'R2'])
+
 for df_temp in countries_df:
+    model = LinearRegression()
     curr_country = df_temp['Country'].unique()[0]
 
     print(curr_country)
@@ -147,7 +152,6 @@ for df_temp in countries_df:
     df_temp_CO2 = df_temp.groupby(df_temp['dt'].dt.year)['CO2'].mean().to_frame()
     df_temp_methane = df_temp.groupby(df_temp['dt'].dt.year)['methane'].mean().to_frame()
     df_temp_population = df_temp.groupby(df_temp['dt'].dt.year)['population'].mean().to_frame()
-
     if curr_country != 'Lesotho':
         df_temp_methane=df_temp_methane[30:]
     df_temp_temperature.reset_index(inplace=True)
@@ -163,7 +167,19 @@ for df_temp in countries_df:
     methane_data_all = df_temp_methane['methane']
     CO2_data_all = df_temp_CO2['CO2']
     population_data_all = df_temp_population['population'].unique()
+    if curr_country != 'Lesotho':
+        x_regression = np.column_stack((gdp_data_all[30:],methane_data_all,CO2_data_all[30:],df_temp_population['population'][30:]))
+        y_regression = temperature_data_all[30:]
 
+    else:
+        x_regression = np.column_stack((gdp_data_all,methane_data_all,CO2_data_all,df_temp_population['population']))
+        y_regression = temperature_data_all
+
+    model.fit(x_regression,y_regression)
+    array_temp = [curr_country, model.coef_[0], model.coef_[1],model.coef_[2],model.coef_[3],model.intercept_, model.score(x_regression,y_regression)]
+    array_df = pd.DataFrame([array_temp], columns=['Country', 'gdp_coef', 'methane_coef', 'CO2_coef', 'population_coef', 'intercept', 'R2'])
+    regression_df = pd.concat([regression_df, array_df], ignore_index = True)
+    regression_df.reset_index()
     stepwise_fit_temp = auto_arima(temperature_data_all, trace=False,suppress_warnings=True,with_intercept=True)
     forecast_temp = stepwise_fit_temp.predict(n_periods=(end_year-last_date))
     stepwise_fit_gdp = auto_arima(gdp_data_all, trace=False,suppress_warnings=True,with_intercept=True)
@@ -207,5 +223,5 @@ for df_temp in countries_df:
 for country_pred in country_predictions:
     df = pd.concat([df, country_pred], ignore_index=True)
 df.to_csv('new_df.csv')
-
-print(country_changes)
+regression_df.to_csv('regression.csv')
+#print(country_changes)
