@@ -172,7 +172,7 @@ for df_temp in countries_df:
     forecast_CO2 = stepwise_fit_CO2.predict(n_periods=(end_year-last_date))
     stepwise_fit_methane = auto_arima(methane_data_all, trace=False,suppress_warnings=True,with_intercept=True)
     forecast_methane = stepwise_fit_methane.predict(n_periods=(end_year-last_date))
-    stepwise_fit_population = auto_arima(population_data_all, trace=True,suppress_warnings=True,with_intercept=True)
+    stepwise_fit_population = auto_arima(population_data_all, trace=False,suppress_warnings=True,with_intercept=True)
     forecast_population = stepwise_fit_population.predict(n_periods=int(((end_year-last_date)/10)))
     #print(forecast_population)
     #input()
@@ -202,5 +202,10 @@ for df_temp in countries_df:
     df_write.to_csv('csv_files/' + curr_country + '_forecasts.csv')
     country_predictions.append(df_write)
 
-        #print('Issue with country: ' + curr_country)
+    #print('Issue with country: ' + curr_country)
+
+for country_pred in country_predictions:
+    df = pd.concat([df, country_pred], ignore_index=True)
+df.to_csv('new_df.csv')
+
 print(country_changes)
