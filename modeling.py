@@ -20,6 +20,7 @@ from sklearn.linear_model import LinearRegression
 
 warnings.filterwarnings("ignore")
 
+# Read in datasets
 temps=pd.read_csv('GlobalLandTemperaturesByCountry.csv', low_memory=False)
 emissions=pd.read_csv('co2_emission.csv')
 population=pd.read_csv('population_pyramid_1950-2022.csv').drop(columns='Age')
@@ -35,7 +36,7 @@ temp_data=temps[temps['dt']>'1950-01-01'].reset_index(drop=True)
 
 #There are some duplicate countries, so I am removing those
 temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Europe)','Netherlands (Europe)','United Kingdom (Europe)' ])]
-#print(temp_data.Country.unique())
+print(temp_data.Country.unique())
 
 #Adding a year column so we can join CO2 data
 temp_data['year'] = pd.DatetimeIndex(temp_data['dt']).year
@@ -50,7 +51,7 @@ population=population.rename(columns={'Year':'decade'})
 
 population['Country']=population['Country'].replace(['United States of America', 'Russian Federation', 'Viet Nam', 'Venezuela (Bolivarian Republic of)', 'Iran (Islamic Republic of)', 'Republic of Korea', 'United Republic of Tanzania'],
                                                     ['United States', 'Russia', 'Vietnam', 'Venezuela', 'Iran', 'South Korea', 'Tanzania'])
-#print(population.Country.unique())
+print(population.Country.unique())
 #print(population.head())
 
 
@@ -60,7 +61,7 @@ year_list=list(methane.columns)
 methane= pd.melt(methane, value_vars=year_list,value_name='methane', var_name='Year', ignore_index=False).reset_index()
 methane['Year']=methane['Year'].astype('int64')
 
-#print(methane.head())
+print(methane.head())
 
 
 #Clean and process GDP data
@@ -68,7 +69,7 @@ gdp=gdp.set_index('Country Name')
 year_list=list(gdp.columns)
 gdp= pd.melt(gdp, value_vars=year_list,value_name='gdp', var_name='Year', ignore_index=False).reset_index().rename(columns={'Country Name':'Country'})
 gdp['Year']=gdp['Year'].astype('int64')
-#print(gdp.head())
+print(gdp.head())
 
 
 # %%
@@ -80,24 +81,26 @@ df['Annual CO₂ emissions (tonnes )']=df['Annual CO₂ emissions (tonnes )']/12
 
 
 #Inner joining population data and renaming some columns
-df=pd.merge(df, population, how='inner', left_on=['Country', 'decade'], right_on=['Country', 'decade'])
+df=pd.merge(df, population, how='left', left_on=['Country', 'decade'], right_on=['Country', 'decade'])
 df=df.rename(columns={'Annual CO₂ emissions (tonnes )': 'CO2', 'total':'population'})
 #print(df.head())
-
-#print(df['Country'].unique())
+print(df['Country'].unique())
 #159 countries
 
 #Merging methane data, left merge because we are missing several years compared to other sets
 df=pd.merge(df, methane, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['methane']=df['methane']/12
 
-
-#Joining GDP data w inner join
-df=pd.merge(df, gdp, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+#Joining GDP data w left join
+df=pd.merge(df, gdp, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['gdp']=df['gdp']/12
 df['dt']=df['dt'].astype(str)
 print(len(df['Country'].unique()))
-#print(df.head(50))
+print(df['Country'].unique())
+print(df.head(50))
+
+#%%
+import json
 pd.set_option('display.max_columns', None)
 #print(df.describe())
 
@@ -114,7 +117,6 @@ countries_df = []
 for country in countries:
     df2=df.query("Country == @country")
     countries_df.append(df2)
-
 i=0
 tot_rmse = 0
 order_array = []
@@ -136,60 +138,76 @@ ideal_order = (-1,-1,-1)
 ideal_trend = 'd'
 min_val = 1000000000
 end_date = parser.parse("01-01-2050")
-end_year = 3000
+end_year = 2050
 country_predictions = []
 country_changes ={}
 regression_df = pd.DataFrame(columns=['Country', 'gdp_coef', 'methane_coef', 'CO2_coef', 'population_coef', 'intercept', 'R2'])
 
 for df_temp in countries_df:
-    model = LinearRegression()
+    #model = LinearRegression()
     curr_country = df_temp['Country'].unique()[0]
-
+    methane_bool = True
+    pop_bool = False
+    gdp_bool = True
     print(curr_country)
     df_temp['dt'] = pd.to_datetime(df_temp['dt'])
     df_temp_temperature = df_temp.groupby(df_temp['dt'].dt.year)['AverageTemperature'].mean().to_frame()
     df_temp_gdp = df_temp.groupby(df_temp['dt'].dt.year)['gdp'].mean().to_frame()
     df_temp_CO2 = df_temp.groupby(df_temp['dt'].dt.year)['CO2'].mean().to_frame()
     df_temp_methane = df_temp.groupby(df_temp['dt'].dt.year)['methane'].mean().to_frame()
+
     df_temp_population = df_temp.groupby(df_temp['dt'].dt.year)['population'].mean().to_frame()
     if curr_country != 'Lesotho':
-        df_temp_methane=df_temp_methane[30:]
+        df_temp_methane=df_temp_methane.loc[df_temp_methane.index>=1990]
+
+    if np.any(np.isnan(df_temp_methane)) or df_temp_methane.empty:
+        methane_bool = False
+    if np.any(np.isnan(df_temp_population)):
+        pop_bool = False
+    if np.any(np.isnan(df_temp_gdp)):
+        gdp_bool = False
     df_temp_temperature.reset_index(inplace=True)
+
     df_temp_gdp.reset_index(inplace=True)
     df_temp_CO2.reset_index(inplace=True)
     df_temp_methane.reset_index(inplace=True)
+
     dates = df_temp_temperature['dt']
     last_date = dates.tail(1).to_list()[0]
-    methane_dates = df_temp_methane['dt']
-    last_date_methane = methane_dates.tail(1).to_list()[0]
+    if methane_bool:
+        methane_dates = df_temp_methane['dt']
+        last_date_methane = methane_dates.tail(1).to_list()[0]
     temperature_data_all = df_temp_temperature['AverageTemperature']
     gdp_data_all = df_temp_gdp['gdp']
     methane_data_all = df_temp_methane['methane']
     CO2_data_all = df_temp_CO2['CO2']
     population_data_all = df_temp_population['population'].unique()
-    if curr_country != 'Lesotho':
-        x_regression = np.column_stack((gdp_data_all[30:],methane_data_all,CO2_data_all[30:],df_temp_population['population'][30:]))
-        y_regression = temperature_data_all[30:]
+    #if curr_country != 'Lesotho':
+        #x_regression = np.column_stack((gdp_data_all[30:],methane_data_all,CO2_data_all[30:],df_temp_population['population'][30:]))
+        #y_regression = temperature_data_all[30:]
 
-    else:
-        x_regression = np.column_stack((gdp_data_all,methane_data_all,CO2_data_all,df_temp_population['population']))
-        y_regression = temperature_data_all
+    #else:
+        #x_regression = np.column_stack((gdp_data_all,methane_data_all,CO2_data_all,df_temp_population['population']))
+        #y_regression = temperature_data_all
 
-    model.fit(x_regression,y_regression)
-    array_temp = [curr_country, model.coef_[0], model.coef_[1],model.coef_[2],model.coef_[3],model.intercept_, model.score(x_regression,y_regression)]
-    array_df = pd.DataFrame([array_temp], columns=['Country', 'gdp_coef', 'methane_coef', 'CO2_coef', 'population_coef', 'intercept', 'R2'])
-    regression_df = pd.concat([regression_df, array_df], ignore_index = True)
-    regression_df.reset_index()
+    #model.fit(x_regression,y_regression)
+    #array_temp = [curr_country, model.coef_[0], model.coef_[1],model.coef_[2],model.coef_[3],model.intercept_, model.score(x_regression,y_regression)]
+    #array_df = pd.DataFrame([array_temp], columns=['Country', 'gdp_coef', 'methane_coef', 'CO2_coef', 'population_coef', 'intercept', 'R2'])
+    #regression_df = pd.concat([regression_df, array_df], ignore_index = True)
+    #regression_df.reset_index()
     stepwise_fit_temp = auto_arima(temperature_data_all, trace=False,suppress_warnings=True,with_intercept=True)
     forecast_temp = stepwise_fit_temp.predict(n_periods=(end_year-last_date))
-    stepwise_fit_gdp = auto_arima(gdp_data_all, trace=False,suppress_warnings=True,with_intercept=True)
-    forecast_gdp = stepwise_fit_gdp.predict(n_periods=(end_year-last_date))
+    if gdp_bool:
+        stepwise_fit_gdp = auto_arima(gdp_data_all, trace=False,suppress_warnings=True,with_intercept=True)
+        forecast_gdp = stepwise_fit_gdp.predict(n_periods=(end_year-last_date))
     stepwise_fit_CO2 = auto_arima(CO2_data_all, trace=False,suppress_warnings=True,with_intercept=True)
     forecast_CO2 = stepwise_fit_CO2.predict(n_periods=(end_year-last_date))
-    stepwise_fit_methane = auto_arima(methane_data_all, trace=False,suppress_warnings=True,with_intercept=True)
-    forecast_methane = stepwise_fit_methane.predict(n_periods=(end_year-last_date))
-    stepwise_fit_population = auto_arima(population_data_all, trace=False,suppress_warnings=True,with_intercept=True)
-    forecast_population = stepwise_fit_population.predict(n_periods=int(((end_year-last_date)/10)))
+    if methane_bool:
+        stepwise_fit_methane = auto_arima(methane_data_all, trace=False,suppress_warnings=True,with_intercept=True)
+        forecast_methane = stepwise_fit_methane.predict(n_periods=(end_year-last_date))
+    if pop_bool:
+        stepwise_fit_population = auto_arima(population_data_all, trace=False,suppress_warnings=True,with_intercept=True)
+        forecast_population = stepwise_fit_population.predict(n_periods=int(((end_year-last_date)/10)))
     #print(forecast_population)
     #input()
 
@@ -206,6 +224,9 @@ for df_temp in countries_df:
     # #temp_str = curr_country + ": " + str(sarima_rmse) + '\n'
     # #tot_rmse+=sarima_rmse
     #date_future = pd.date_range(last_date,'2050-01-01', freq='MS').strftime("%Y-%b").tolist()
+    if not methane_bool:
+        forecast_methane = np.zeros(len(forecast_temp))
+    forecast_gdp = np.zeros(len(forecast_temp))
     date_future = range(last_date,end_year)
     temp_df_stuff = np.column_stack((date_future, forecast_temp, forecast_CO2, forecast_gdp, forecast_methane))
     df_write = pd.DataFrame(temp_df_stuff, columns = ['dt','AverageTemperature','CO2','gdp','methane'])
@@ -213,8 +234,8 @@ for df_temp in countries_df:
     df_write ['Country'] = curr_country
     #print(df_write)
     #order_list = str(order_temp)
-    percent_change = (df_write.iloc[986]['AverageTemperature'] - df_write.iloc[2]['AverageTemperature'])/df_write.iloc[2]['AverageTemperature']*100
-    country_changes[curr_country] = percent_change
+    #percent_change = (df_write.iloc[986]['AverageTemperature'] - df_write.iloc[2]['AverageTemperature'])/df_write.iloc[2]['AverageTemperature']*100
+    #country_changes[curr_country] = percent_change
     df_write.to_csv('csv_files/' + curr_country + '_forecasts.csv')
     country_predictions.append(df_write)
 
@@ -223,5 +244,5 @@ for df_temp in countries_df:
 for country_pred in country_predictions:
     df = pd.concat([df, country_pred], ignore_index=True)
 df.to_csv('new_df.csv')
-regression_df.to_csv('regression.csv')
+#regression_df.to_csv('regression.csv')
 #print(country_changes)
