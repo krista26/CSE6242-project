@@ -5,9 +5,6 @@ Created on Thu Oct 20 20:54:11 2022
 @author: krist
 """
 
-import pandas as pd
-import numpy as np
-
 # Read in datasets
 temps=pd.read_csv('GlobalLandTemperaturesByCountry.csv', low_memory=False)
 emissions=pd.read_csv('co2_emission.csv')
@@ -24,7 +21,7 @@ temp_data=temps[temps['dt']>'1950-01-01'].reset_index(drop=True)
 
 #There are some duplicate countries, so I am removing those
 temp_data=temp_data[~temp_data['Country'].isin(['Denmark (Europe)','France (Europe)','Netherlands (Europe)','United Kingdom (Europe)' ])]
-#print(temp_data.Country.unique())
+print(temp_data.Country.unique())
 
 #Adding a year column so we can join CO2 data
 temp_data['year'] = pd.DatetimeIndex(temp_data['dt']).year
@@ -39,7 +36,7 @@ population=population.rename(columns={'Year':'decade'})
 
 population['Country']=population['Country'].replace(['United States of America', 'Russian Federation', 'Viet Nam', 'Venezuela (Bolivarian Republic of)', 'Iran (Islamic Republic of)', 'Republic of Korea', 'United Republic of Tanzania'],
                                                     ['United States', 'Russia', 'Vietnam', 'Venezuela', 'Iran', 'South Korea', 'Tanzania'])
-#print(population.Country.unique())
+print(population.Country.unique())
 #print(population.head())
 
 
@@ -69,10 +66,9 @@ df['Annual CO₂ emissions (tonnes )']=df['Annual CO₂ emissions (tonnes )']/12
 
 
 #Inner joining population data and renaming some columns
-df=pd.merge(df, population, how='inner', left_on=['Country', 'decade'], right_on=['Country', 'decade'])
+df=pd.merge(df, population, how='left', left_on=['Country', 'decade'], right_on=['Country', 'decade'])
 df=df.rename(columns={'Annual CO₂ emissions (tonnes )': 'CO2', 'total':'population'})
 #print(df.head())
-
 print(df['Country'].unique())
 #159 countries
 
@@ -80,13 +76,14 @@ print(df['Country'].unique())
 df=pd.merge(df, methane, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['methane']=df['methane']/12
 
-
-#Joining GDP data w inner join
-df=pd.merge(df, gdp, how='inner', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
+#Joining GDP data w left join
+df=pd.merge(df, gdp, how='left', left_on=['Country', 'Year'], right_on=['Country', 'Year'])
 df['gdp']=df['gdp']/12
 df['dt']=df['dt'].astype(str)
 print(len(df['Country'].unique()))
+print(df['Country'].unique())
 print(df.head(50))
+
 #%%
 import json
 pd.set_option('display.max_columns', None)
